@@ -13,6 +13,12 @@
       "description": "Core Claude Code plugins for Firstloop projects",
       "source": "./plugins/core",
       "category": "development"
+    },
+    {
+      "name": "monotemplate",
+      "description": "CRUD architecture management for monorepo templates with layered patterns",
+      "source": "./plugins/monotemplate",
+      "category": "development"
     }
   ]
 }
