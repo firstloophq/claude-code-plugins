@@ -1,0 +1,7 @@
+{
+  "name": "core",
+  "version": "0.1.0",
+  "description": "Core Claude Code plugins for Firstloop projects",
+  "repository": "https://github.com/firstloophq/claude-code-plugins",
+  "license": "MIT"
+}
