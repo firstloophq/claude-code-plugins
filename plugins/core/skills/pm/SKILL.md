@@ -18,10 +18,12 @@ Use this workflow when the user wants to plan a feature or task.
    - Existing patterns and architecture
    - Files that would be affected
    - Dependencies and constraints
-3. **Ask clarifying questions** - Iterate with the user on:
+3. **Ask clarifying questions** - **IMPORTANT: Always use the `AskUserQuestion` tool** to iterate with the user on:
    - Scope and requirements
    - Edge cases
    - Acceptance criteria
+
+   > The `AskUserQuestion` tool provides structured prompts that ensure clear, consistent user interaction. Never use prose-based questions in your response—always use the tool.
 4. **Draft the plan** - Present a summary for user approval
 5. **Create GitHub issue** - Once approved, create the issue using `gh`
 
@@ -55,6 +57,7 @@ EOF
 
 ### Key Principles
 
+- **Use the `AskUserQuestion` tool** for all clarifying questions—never ask questions in prose
 - Keep asking questions until requirements are clear
 - Research the codebase before proposing solutions
 - Get explicit user approval before creating the issue
