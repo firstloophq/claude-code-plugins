@@ -1,5 +1,5 @@
 ---
-name: manage-crud-architecture
+name: crud
 description: Add or modify CRUD entities following the layered architecture pattern. Use when adding new database models, creating API endpoints, or implementing data access layers.
 ---
 
