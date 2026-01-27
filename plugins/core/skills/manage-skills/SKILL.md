@@ -5,6 +5,31 @@ description: Create and improve Claude Skills with proper structure, frontmatter
 
 # Managing Claude Skills
 
+## Before Creating a Skill
+
+### Where does this skill belong?
+
+**Firstloop shared skill** (default assumption):
+- Skills for `core` or `monotemplate` plugins
+- Improvements to existing shared skills
+- → Create a GitHub issue in `firstloophq/claude-code-plugins` (see [meta-skill-management.md](meta-skill-management.md))
+
+**Local project skill**:
+- Project-specific workflows
+- Custom skills for a single codebase
+- User explicitly requests a "local skill"
+- → Create directly in `.claude/skills/<skill-name>/SKILL.md`
+
+### Quick Reference
+
+| Scenario | Action |
+|----------|--------|
+| "Create a skill for monotemplate" | GitHub issue |
+| "Improve the crud skill" | GitHub issue |
+| "Add a docker skill to the plugin" | GitHub issue |
+| "Create a local skill for this project" | Create in `.claude/skills/` |
+| "Add a skill just for this repo" | Create in `.claude/skills/` |
+
 ## Creating Skills
 
 ### Quick Start
