@@ -1,11 +1,13 @@
 ---
-name: create-skill
-description: Create new Claude Skills with proper structure, frontmatter, and best practices. Use when the user wants to create a skill, build a skill, make a new skill, or scaffold skill files.
+name: manage-skills
+description: Create and improve Claude Skills with proper structure, frontmatter, and best practices. Use when creating new skills, improving existing skills, refactoring skill content, or scaffolding skill files.
 ---
 
-# Creating Claude Skills
+# Managing Claude Skills
 
-## Quick Start
+## Creating Skills
+
+### Quick Start
 
 Create a skill by making a `SKILL.md` file in `.claude/skills/<skill-name>/`:
 
@@ -196,6 +198,113 @@ Use descriptive, lowercase names with hyphens:
 3. Make a request that should trigger the skill
 4. Verify Claude uses the skill correctly
 5. Iterate based on behavior
+
+---
+
+## Improving Existing Skills
+
+### When to Improve a Skill
+
+- Skill produces inconsistent results
+- Instructions are ambiguous or unclear
+- Missing edge cases or workflows
+- Description doesn't trigger skill when expected
+- Skill has grown too large and needs refactoring
+
+### Improvement Process
+
+1. **Read the existing skill** - Understand current structure and intent
+2. **Identify the problem** - What's not working or missing?
+3. **Make targeted changes** - Don't rewrite unless necessary
+4. **Test the changes** - Verify improvements in a new conversation
+
+### Common Improvements
+
+#### Sharpen the Description
+
+If the skill isn't triggering when expected, improve the description:
+
+```yaml
+# Before - too vague
+description: Helps with database tasks
+
+# After - specific triggers
+description: Generate and run database migrations. Use when creating tables, modifying schemas, or updating database structure.
+```
+
+#### Add Missing Workflows
+
+If Claude doesn't handle certain cases, add explicit workflows:
+
+```markdown
+## Edge Cases
+
+### Empty Input
+If input is empty, prompt user for required data before proceeding.
+
+### Existing File Conflict
+If file already exists, ask user whether to overwrite, merge, or abort.
+```
+
+#### Reduce Ambiguity
+
+Replace vague instructions with specific ones:
+
+```markdown
+# Before - ambiguous
+Review the code and suggest improvements.
+
+# After - specific
+Review the code for:
+1. Security vulnerabilities (injection, XSS, auth issues)
+2. Performance problems (N+1 queries, unnecessary loops)
+3. Error handling gaps
+
+For each issue found, provide:
+- Location (file:line)
+- Problem description
+- Suggested fix
+```
+
+#### Split Large Skills
+
+If a skill exceeds 500 lines, consider:
+
+1. Moving reference material to separate files
+2. Splitting into multiple focused skills
+3. Using a reference folder structure:
+
+```
+my-skill/
+├── SKILL.md           # Core instructions only
+└── reference/
+    ├── api.md         # API details
+    ├── examples.md    # Extended examples
+    └── errors.md      # Error handling guide
+```
+
+#### Improve Examples
+
+Add before/after examples to clarify expected behavior:
+
+```markdown
+## Examples
+
+**Input**: User asks "format this JSON"
+**Expected**: Format JSON with 2-space indentation, sorted keys
+
+**Input**: User provides malformed JSON
+**Expected**: Report specific syntax error location, suggest fix
+```
+
+### Refactoring Checklist
+
+- [ ] Description clearly states what and when
+- [ ] Instructions are unambiguous
+- [ ] Edge cases are documented
+- [ ] Examples demonstrate expected behavior
+- [ ] Reference material is in separate files
+- [ ] File is under 500 lines
 
 ## Additional Resources
 
