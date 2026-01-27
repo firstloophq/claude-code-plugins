@@ -39,6 +39,22 @@ EOF
 )"
 ```
 
+### Triggering Claude to Work on Issues
+
+Tag `@claude` in your issue or comment to trigger a GitHub Action that runs Claude on the issue automatically.
+
+**In the issue body:**
+```markdown
+@claude Please update the pm skill to add a new workflow for sprint planning.
+```
+
+**In a comment on an existing issue:**
+```markdown
+@claude Can you improve the description for the crud skill so it triggers when users ask about "adding a new model"?
+```
+
+Claude will read the issue context and respond with analysis, proposed changes, or a PR.
+
 ### Labels
 
 Use appropriate labels when creating issues:
