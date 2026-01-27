@@ -310,4 +310,5 @@ Add before/after examples to clarify expected behavior:
 
 - [Frontmatter Rules](frontmatter-rules.md) - Detailed YAML validation rules
 - [Advanced Patterns](advanced-patterns.md) - Feedback loops, workflows, scripts
+- [Meta Skill Management](meta-skill-management.md) - How to contribute improvements to shared skills
 
