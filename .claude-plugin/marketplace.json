@@ -1,7 +1,7 @@
 {
   "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
   "name": "firstloop-claude-code-plugins",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Bundled plugins for Claude Code from Firstloop",
   "owner": {
     "name": "Firstloop",
