@@ -99,6 +99,80 @@ claude-code-plugins/
 1. **Identify improvement** - Notice a skill issue while working
 2. **Create issue** - Document the problem in the repo
 3. **Branch and fix** - Create a branch, make changes
-4. **Test locally** - Verify the skill works as expected
-5. **Create PR** - Submit for review
-6. **Merge** - Once approved, merge to main
+4. **Version bump** - Bump the plugin version (see below)
+5. **Test locally** - Verify the skill works as expected
+6. **Create PR** - Submit for review
+7. **Merge** - Once approved, merge to main
+
+## Version Bumping
+
+When improving a skill, you **must** bump the version of the plugin that contains the skill.
+
+### Plugin Version Location
+
+Each plugin has a `plugin.json` file in its `.claude-plugin` directory:
+
+```
+plugins/
+├── core/.claude-plugin/plugin.json           # Core plugin version
+└── monotemplate/.claude-plugin/plugin.json   # Monotemplate plugin version
+```
+
+### Version Format
+
+Plugins use [semantic versioning](https://semver.org/) (major.minor.patch):
+
+- **Patch** (0.1.0 → 0.1.1): Bug fixes, typo corrections
+- **Minor** (0.1.0 → 0.2.0): New features, skill improvements, new skills
+- **Major** (0.1.0 → 1.0.0): Breaking changes
+
+### Default: Minor Version Bump
+
+**Always use a minor version bump** unless:
+- The change is a simple bug fix or typo → use patch
+- The user explicitly requests a different bump level
+- The change introduces breaking behavior → use major
+
+### How to Bump the Version
+
+1. Identify which plugin contains the skill you're modifying
+2. Open the plugin's `plugin.json` file
+3. Update the `version` field
+
+**Example - Minor bump for core plugin skill improvement:**
+
+```json
+// Before
+{
+  "name": "core",
+  "version": "0.1.1",
+  ...
+}
+
+// After
+{
+  "name": "core",
+  "version": "0.2.0",
+  ...
+}
+```
+
+### Quick Commands
+
+**View current version:**
+```bash
+cat plugins/core/.claude-plugin/plugin.json | grep version
+```
+
+**Update version (using jq):**
+```bash
+# Minor bump
+jq '.version = "0.2.0"' plugins/core/.claude-plugin/plugin.json > tmp.json && mv tmp.json plugins/core/.claude-plugin/plugin.json
+```
+
+### Version Bump Checklist
+
+- [ ] Identified the correct plugin (`core` or `monotemplate`)
+- [ ] Chose appropriate bump level (default: minor)
+- [ ] Updated the `version` field in `plugin.json`
+- [ ] Included version change in the commit
