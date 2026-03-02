@@ -29,7 +29,7 @@ model projects {
 - Add `deleted_at` for soft deletes when needed
 - Use cascading deletes/updates on foreign keys
 - Add indexes for commonly queried fields
-- **Organizations use Clerk IDs** - `@id` without `@default(uuid())` for org table
+- **Organizations use Clerk IDs** — `@id` without `@default(uuid())` for org table
 
 **After editing schema:**
 ```bash
@@ -39,46 +39,34 @@ cd apps/server && bun run db:generate
 
 ---
 
-## 2. Zod Schemas
+## 2. Zod Types
 
-**Location**: `packages/common/src/types/<entity>/` (shared between frontend and backend)
+**Location**: `packages/common/src/contracts/v1/<entity>/types.ts`
 
-Create three files per entity:
+All types for an entity live in a single `types.ts` file, shared between frontend and backend.
 
-### Main Entity Schema
-**File**: `apps/server/src/types/project/project.ts`
 ```typescript
 import { z } from "zod";
 
+// Entity schema
 export const projectSchema = z.object({
   id: z.string().uuid(),
-  organizationId: z.string().uuid(),
+  organizationId: z.string().min(1),
   name: z.string().min(1),
   createdAt: z.date(),
   updatedAt: z.date(),
 });
 
 export type Project = z.infer<typeof projectSchema>;
-```
 
-### Create Input Schema
-**File**: `apps/server/src/types/project/create-project-input.ts`
-```typescript
-import { z } from "zod";
-
+// Create input
 export const createProjectInputSchema = z.object({
-  organizationId: z.string().uuid(),
   name: z.string().min(1),
 });
 
 export type CreateProjectInput = z.infer<typeof createProjectInputSchema>;
-```
 
-### Update Input Schema
-**File**: `apps/server/src/types/project/update-project-input.ts`
-```typescript
-import { z } from "zod";
-
+// Update input
 export const updateProjectInputSchema = z.object({
   name: z.string().min(1).optional(),
 });
@@ -86,41 +74,91 @@ export const updateProjectInputSchema = z.object({
 export type UpdateProjectInput = z.infer<typeof updateProjectInputSchema>;
 ```
 
-### Index Export
-**File**: `apps/server/src/types/project/index.ts`
-```typescript
-export * from "./project";
-export * from "./create-project-input";
-export * from "./update-project-input";
-```
-
 **Key Points:**
 - Use camelCase for TypeScript types (maps from snake_case in Prisma)
 - Export both Zod schema and inferred TypeScript type
-- Create separate schemas for: entity, create input, update input
 - Update input fields should be optional
+- Don't include `organizationId` in create/update inputs — it comes from auth context
 
 ---
 
-## 3. Repository Layer
+## 3. oRPC Contract
+
+**File**: `packages/common/src/contracts/v1/<entity>/router.ts`
+
+Contracts define the API shape (method, path, input/output schemas) shared between client and server.
+
+```typescript
+import { z } from "zod";
+import { appErrors } from "../../errors";
+import { projectSchema, createProjectInputSchema, updateProjectInputSchema } from "./types";
+
+export const projectsContract = {
+    listProjects: appErrors
+        .route({ method: 'GET', path: '/v1/projects' })
+        .output(z.object({ message: z.string(), data: z.array(projectSchema) })),
+    createProject: appErrors
+        .route({ method: 'POST', path: '/v1/projects' })
+        .input(createProjectInputSchema)
+        .output(z.object({ message: z.string(), data: projectSchema })),
+    getProject: appErrors
+        .route({ method: 'GET', path: '/v1/projects/{id}' })
+        .input(z.object({ id: z.string().uuid() }))
+        .output(z.object({ message: z.string(), data: projectSchema })),
+    updateProject: appErrors
+        .route({ method: 'PUT', path: '/v1/projects/{id}' })
+        .input(updateProjectInputSchema.extend({ id: z.string().uuid() }))
+        .output(z.object({ message: z.string(), data: projectSchema })),
+    deleteProject: appErrors
+        .route({ method: 'DELETE', path: '/v1/projects/{id}' })
+        .input(z.object({ id: z.string().uuid() }))
+        .output(z.object({ message: z.string() })),
+};
+```
+
+**Key Points:**
+- `appErrors` comes from `packages/common/src/contracts/errors.ts` — attaches shared error codes via `oc.errors()`
+- `.route()` defines HTTP method and path
+- Path params use `{param}` syntax
+- All outputs follow `{ message: string, data: T }` format
+- `.input()` is omitted when there's no request body (e.g., list endpoints)
+
+**Register in app contract** (`packages/common/src/contracts/app-contract.ts`):
+```typescript
+import { projectsContract } from './v1/projects/router';
+
+export const appContract = {
+    ...usersContract,
+    ...todosContract,
+    ...projectsContract,
+};
+```
+
+**Export from** `packages/common/src/contracts/index.ts`:
+```typescript
+export * from './v1/projects/types';
+export * from './v1/projects/router';
+```
+
+---
+
+## 4. Repository Layer
 
 **File**: `apps/server/src/repositories/ProjectsRepository.ts`
 
 ```typescript
+import { injectable, inject } from "inversify";
 import { PrismaClient } from "@server/generated/prisma";
 import { Result, success, failure } from "common";
-import { Project } from "@server/types/project";
-import { CreateProjectInput } from "@server/types/project/create-project-input";
-import { UpdateProjectInput } from "@server/types/project/update-project-input";
+import { Project } from "common";
+import { CreateProjectInput } from "common";
+import { UpdateProjectInput } from "common";
 
+@injectable()
 export class ProjectsRepository {
-  private prisma: PrismaClient;
+  constructor(@inject(PrismaClient) private prisma: PrismaClient) {}
 
-  constructor({ prisma }: { prisma: PrismaClient }) {
-    this.prisma = prisma;
-  }
-
-  async create({ data }: { data: CreateProjectInput }): Promise<Result<Project>> {
+  async create({ data }: { data: CreateProjectInput & { organizationId: string } }): Promise<Result<Project>> {
     try {
       const result = await this.prisma.projects.create({
         data: {
@@ -205,39 +243,38 @@ function mapPrismaProjectToProject(prisma: {
 ```
 
 **Key Points:**
+- `@injectable()` decorator on the class
+- `@inject(PrismaClient)` on the constructor parameter
 - **Always create a mapping function** (`mapPrisma[Entity]To[Entity]`)
 - All methods return `Result<T>` for consistent error handling
 - Use `success(data)` and `failure(message, error)` from `common` package
-- Constructor uses single parameter object: `{ prisma }`
 - All methods use single parameter objects: `{ id }`, `{ data }`, `{ id, data }`
-- Repository only handles data access - no business logic
+- Repository only handles data access — no business logic
 - For soft deletes, filter with `deleted_at: null` in queries
 
 ---
 
-## 4. Controller Layer
+## 5. Controller Layer
 
 **File**: `apps/server/src/controllers/ProjectsController.ts`
 
 ```typescript
+import { injectable, inject } from "inversify";
 import { Result, failure } from "common";
 import { ProjectsRepository } from "@server/repositories/ProjectsRepository";
-import { Project } from "@server/types/project";
-import { CreateProjectInput } from "@server/types/project/create-project-input";
-import { UpdateProjectInput } from "@server/types/project/update-project-input";
+import { Project } from "common";
+import { CreateProjectInput } from "common";
+import { UpdateProjectInput } from "common";
 import { logger } from "@server/common/utils/logger";
 
+@injectable()
 export class ProjectsController {
-  private projectsRepository: ProjectsRepository;
+  constructor(@inject(ProjectsRepository) private projectsRepository: ProjectsRepository) {}
 
-  constructor({ projectsRepository }: { projectsRepository: ProjectsRepository }) {
-    this.projectsRepository = projectsRepository;
-  }
-
-  async create({ data }: { data: CreateProjectInput }): Promise<Result<Project>> {
+  async create({ organizationId, data }: { organizationId: string; data: CreateProjectInput }): Promise<Result<Project>> {
     try {
       logger.info("[ProjectsController] Creating project", { name: data.name });
-      return await this.projectsRepository.create({ data });
+      return await this.projectsRepository.create({ data: { ...data, organizationId } });
     } catch (error) {
       logger.error("[ProjectsController] Error creating project", { error });
       return failure("Error creating project", error);
@@ -256,7 +293,6 @@ export class ProjectsController {
   async update({ id, data }: { id: string; data: UpdateProjectInput }): Promise<Result<Project>> {
     try {
       logger.info("[ProjectsController] Updating project", { id });
-      // Business logic goes here (validation, authorization, etc.)
       return await this.projectsRepository.update({ id, data });
     } catch (error) {
       logger.error("[ProjectsController] Error updating project", { error });
@@ -286,190 +322,101 @@ export class ProjectsController {
 ```
 
 **Key Points:**
+- `@injectable()` decorator on the class
+- `@inject(ProjectsRepository)` on the constructor parameter — import the class (not `type`-only)
 - Controllers contain business logic only
-- Inject dependencies via constructor using single parameter object
 - Return `Result<T>` for all operations
 - Add logging for debugging
-- Keep controllers thin - complex logic should be in services
+- Keep controllers thin — complex logic should be in services
 
 ---
 
-## 5. tRPC Router
+## 6. oRPC Router Implementation
 
-**File**: `apps/server/src/routers/projects-router.ts`
+**File**: `apps/server/src/routers/v1/<entity>/router.ts`
+
+The router implementation wires the oRPC contract to the controller via DI.
 
 ```typescript
-import { z } from "zod";
-import { TRPCError } from "@trpc/server";
-import { publicProcedure, router } from "@server/trpc";
-import { Container } from "@server/di/container";
-import { projectSchema } from "@server/types/project";
-import { createProjectInputSchema } from "@server/types/project/create-project-input";
-import { updateProjectInputSchema } from "@server/types/project/update-project-input";
+import { container } from "@server/di/container";
+import { ProjectsController } from "@server/controllers/ProjectsController";
+import { unwrapResult } from "common";
+import { authed } from "../../orpc-middleware";
 
-export function createProjectsRouter(container: Container) {
-  const { projectsController } = container;
+const projectsController = container.get(ProjectsController);
 
-  return router({
-    create: publicProcedure
-      .input(createProjectInputSchema)
-      .output(z.object({ message: z.string(), data: projectSchema }))
-      .mutation(async ({ input, ctx }) => {
-        if (!ctx.auth.userId) {
-          throw new TRPCError({ code: "UNAUTHORIZED", message: "Authentication required" });
-        }
+export const listProjects = authed.listProjects
+    .handler(async ({ context }) => {
+        const result = await projectsController.listByOrganization({ organizationId: context.orgId });
+        return { message: "Projects retrieved", data: unwrapResult(result) };
+    });
 
-        const result = await projectsController.create({ data: input });
+export const createProject = authed.createProject
+    .handler(async ({ context, input }) => {
+        const result = await projectsController.create({ organizationId: context.orgId, data: input });
+        return { message: "Project created", data: unwrapResult(result) };
+    });
 
-        if (!result.success) {
-          throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: result.message });
-        }
-
-        return { message: "Project created", data: result.data };
-      }),
-
-    getById: publicProcedure
-      .input(z.object({ id: z.string().uuid() }))
-      .output(z.object({ message: z.string(), data: projectSchema }))
-      .query(async ({ input, ctx }) => {
-        if (!ctx.auth.userId) {
-          throw new TRPCError({ code: "UNAUTHORIZED", message: "Authentication required" });
-        }
-
+export const getProject = authed.getProject
+    .handler(async ({ input }) => {
         const result = await projectsController.getById({ id: input.id });
+        return { message: "Project retrieved", data: unwrapResult(result) };
+    });
 
-        if (!result.success) {
-          throw new TRPCError({ code: "NOT_FOUND", message: result.message });
-        }
+export const updateProject = authed.updateProject
+    .handler(async ({ input }) => {
+        const { id, ...data } = input;
+        const result = await projectsController.update({ id, data });
+        return { message: "Project updated", data: unwrapResult(result) };
+    });
 
-        return { message: "Project retrieved", data: result.data };
-      }),
-
-    update: publicProcedure
-      .input(z.object({ id: z.string().uuid(), data: updateProjectInputSchema }))
-      .output(z.object({ message: z.string(), data: projectSchema }))
-      .mutation(async ({ input, ctx }) => {
-        if (!ctx.auth.userId) {
-          throw new TRPCError({ code: "UNAUTHORIZED", message: "Authentication required" });
-        }
-
-        const result = await projectsController.update({ id: input.id, data: input.data });
-
-        if (!result.success) {
-          throw new TRPCError({ code: "NOT_FOUND", message: result.message });
-        }
-
-        return { message: "Project updated", data: result.data };
-      }),
-
-    delete: publicProcedure
-      .input(z.object({ id: z.string().uuid() }))
-      .output(z.object({ message: z.string(), data: projectSchema }))
-      .mutation(async ({ input, ctx }) => {
-        if (!ctx.auth.userId) {
-          throw new TRPCError({ code: "UNAUTHORIZED", message: "Authentication required" });
-        }
-
+export const deleteProject = authed.deleteProject
+    .handler(async ({ input }) => {
         const result = await projectsController.delete({ id: input.id });
-
-        if (!result.success) {
-          throw new TRPCError({ code: "NOT_FOUND", message: result.message });
-        }
-
-        return { message: "Project deleted", data: result.data };
-      }),
-
-    listByOrganization: publicProcedure
-      .input(z.object({ organizationId: z.string().uuid() }))
-      .output(z.object({ message: z.string(), data: z.array(projectSchema) }))
-      .query(async ({ input, ctx }) => {
-        if (!ctx.auth.userId) {
-          throw new TRPCError({ code: "UNAUTHORIZED", message: "Authentication required" });
-        }
-
-        const result = await projectsController.listByOrganization({ organizationId: input.organizationId });
-
-        if (!result.success) {
-          throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: result.message });
-        }
-
-        return { message: "Projects retrieved", data: result.data };
-      }),
-  });
-}
+        unwrapResult(result);
+        return { message: "Project deleted" };
+    });
 ```
 
 **Key Points:**
-- Router is a factory function receiving the DI container
-- Use `.input()` and `.output()` with Zod schemas
-- Use `.query()` for GET operations, `.mutation()` for POST/PUT/DELETE
-- Check `ctx.auth.userId` for authorization
-- Check `result.success` and throw `TRPCError` on failure
-- Return consistent format: `{ message: string, data: T }`
+- Resolve controller from DI container at module level: `container.get(ProjectsController)`
+- Use `authed.<handlerName>` from `orpc-middleware.ts` — handles auth automatically
+- `context.orgId` and `context.userId` are available from the `authed` middleware
+- `unwrapResult(result)` converts `Result<T>` — returns data on success, throws `ORPCError` on failure
+- Each handler is a named export matching the contract key
 
----
-
-## 6. Register in App Router
-
-**File**: `apps/server/src/routers/_app.ts`
-
+**Register handlers in** `apps/server/src/routers/orpc.ts`:
 ```typescript
-import { router } from "@server/trpc";
-import { Container } from "@server/di/container";
-import { createUserRouter } from "./user-router";
-import { createProjectsRouter } from "./projects-router";
+import { listProjects, createProject, getProject, updateProject, deleteProject } from './v1/projects/router';
 
-export function createAppRouter(container: Container) {
-  return router({
-    user: createUserRouter(container),
-    projects: createProjectsRouter(container),  // Add new router
-  });
-}
-
-export type AppRouter = ReturnType<typeof createAppRouter>;
+const router = os.router({
+    // ... existing handlers
+    listProjects,
+    createProject,
+    getProject,
+    updateProject,
+    deleteProject,
+});
 ```
 
 ---
 
-## 7. Update DI Container
+## 7. DI Container Registration
 
 **File**: `apps/server/src/di/container.ts`
 
 ```typescript
-import { PrismaClient } from "@server/generated/prisma";
-import { UsersRepository } from "@server/repositories/UsersRepository";
-import { UsersController } from "@server/controllers/UsersController";
 import { ProjectsRepository } from "@server/repositories/ProjectsRepository";
 import { ProjectsController } from "@server/controllers/ProjectsController";
 
-export const createContainer = () => {
-  const prisma = new PrismaClient();
+// Repositories
+container.bind(ProjectsRepository).toSelf().inSingletonScope();
 
-  // Users
-  const usersRepository = new UsersRepository({ prisma });
-  const usersController = new UsersController({ usersRepository });
-
-  // Projects
-  const projectsRepository = new ProjectsRepository({ prisma });
-  const projectsController = new ProjectsController({ projectsRepository });
-
-  return {
-    prisma,
-    usersRepository,
-    usersController,
-    projectsRepository,
-    projectsController,
-  };
-};
-
-export type Container = ReturnType<typeof createContainer>;
+// Controllers
+container.bind(ProjectsController).toSelf().inSingletonScope();
 ```
 
-**Dependency Graph:**
-1. Prisma client created first
-2. Repositories receive Prisma instance
-3. Controllers receive repositories
-4. Container exported with all dependencies
+Add bindings under the appropriate section (Repositories, Controllers). See the `monotemplate:di` skill for full DI documentation.
 
 ---
 
@@ -503,6 +450,18 @@ async getById({ id }: { id: string }): Promise<Result<Project>> {
     return failure("Database error", error);
   }
 }
+```
+
+### unwrapResult Pattern
+
+Used in oRPC router handlers to convert `Result<T>` into thrown errors:
+
+```typescript
+import { unwrapResult } from "common";
+
+// If result is success → returns result.data
+// If result is failure → throws ORPCError with the failure message
+const data = unwrapResult(result);
 ```
 
 ### Mapping Function Pattern
