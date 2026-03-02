@@ -89,6 +89,19 @@ if (isSimulated()) {
 }
 ```
 
+## Nullable / Env-Gated Services
+
+When a service depends on an env variable that may not be set, bind it as `ServiceClass | null`:
+
+```typescript
+container.bind<StorageService | null>(StorageService).toConstantValue(
+    env.SOME_KEY ? new StorageService({ ... }) : null,
+);
+
+// Resolve with explicit type annotation:
+const svc = container.get<StorageService | null>(StorageService);
+```
+
 ## tsconfig Requirements
 
 - `experimentalDecorators: true` and `emitDecoratorMetadata: true` must be set
